@@ -533,7 +533,7 @@ $('b-invite').onclick = async () => {
 // A small service on Modal. It generates nothing: it counts bridges that two climbers on two devices joined,
 // and climbs that reached the top, and shows everyone the same numbers. A bridge you join alone with Tab is not sent.
 // If the service cannot be reached the game carries on without it.
-const LEDGER = '';
+const LEDGER = 'https://yiranshu11--babylon-api.us-east.modal.run';
 const ledgerEl = document.createElement('div');
 ledgerEl.style.cssText = 'color:var(--dim);font-size:12px;text-align:right;font-variant-numeric:tabular-nums';
 $('status').after(ledgerEl);

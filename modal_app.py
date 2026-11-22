@@ -10,7 +10,7 @@ Deploy:  modal deploy modal_app.py
 import modal
 
 app = modal.App("babylon")
-image = modal.Image.debian_slim().pip_install("fastapi[standard]")
+image = modal.Image.debian_slim(python_version="3.12").pip_install("fastapi[standard]")
 ledger = modal.Dict.from_name("babylon-ledger", create_if_missing=True)
 
 

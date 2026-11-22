@@ -86,7 +86,7 @@ sky.userData.flat = true;
 scene.add(sky);
 
 // Warm low sun with soft shadows. The shade is filled with cool sky light.
-scene.add(new THREE.HemisphereLight(0xd6daff, 0xe0c9b2, 1.3));
+const hemi = new THREE.HemisphereLight(0xd6daff, 0xe0c9b2, 1.3); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffd2a4, 2.5);
 sun.position.set(0, 20, 0).add(new THREE.Vector3(30, 40, 75).normalize().multiplyScalar(150));
 sun.target.position.set(0, 20, 0); scene.add(sun.target);
@@ -448,15 +448,29 @@ function sendState() { lastStateSent = now(); if (net) net.send('s', { b: [...br
 // Each tower can be climbed alone. But only a tower whose every bridge has been joined opens onto the next one.
 // Going through the vault with a bridge still broken puts you back at the foot of the same tower.
 let universe = 0;
-const skyBase = { top: new THREE.Color(PAL.skyTop), horizon: new THREE.Color(PAL.skyHorizon) };
 function enterUniverse(n) {
   universe = n; bridges.clear();
   for (const sp of spans.values()) { sp.on = false; sp.t = 0; for (const m of sp.halves) m.scale.x = OPEN; }
-  // PLACEHOLDER LOOK for a new universe: the sky turns to another colour. A creative decision.
-  const h = (universe * 0.13) % 1;
-  sky.material.uniforms.top.value.copy(skyBase.top).offsetHSL(h, 0, 0);
-  sky.material.uniforms.horizon.value.copy(skyBase.horizon).offsetHSL(h, 0, 0);
+  applyLook();
 }
+// PLACEHOLDER LOOKS. Each universe is the same tower at another hour of one day. A creative decision: change freely.
+// The stone itself keeps its colour; it is the light that changes, the way it would on a real building.
+const LOOKS = [
+  { name: 'sunset', top: PAL.skyTop, horizon: PAL.skyHorizon, haze: PAL.haze, deep: PAL.deep, cloud: PAL.cloud,
+    sun: 0xffd2a4, sunPower: 2.5, air: 0xd6daff, bounce: 0xe0c9b2, airPower: 1.3 },
+  { name: 'blue hour', top: 0x0e1a4f, horizon: 0xb18fe6, haze: 0x6a70c8, deep: 0x18205c, cloud: 0x93a4f2,
+    sun: 0x8ea8ff, sunPower: 1.7, air: 0x4f6ee0, bounce: 0x3d3580, airPower: 1.5 },
+];
+function applyLook() {
+  const k = LOOKS[universe % LOOKS.length];
+  sky.material.uniforms.top.value.set(k.top); sky.material.uniforms.horizon.value.set(k.horizon);
+  haze.set(k.haze); PAL.haze = k.haze; PAL.deep = k.deep; // the camera reads these two every frame for the far air
+  for (const c of clouds) c.material.color.set(k.cloud);
+  sun.color.set(k.sun); sun.intensity = k.sunPower;
+  hemi.color.set(k.air); hemi.groundColor.set(k.bounce); hemi.intensity = k.airPower;
+}
+// Add ?u=2 to the address to open straight into the second universe.
+{ const u = (parseInt(q.get('u'), 10) || 1) - 1; if (u > 0) enterUniverse(u); }
 // If two people open the same link they would both be the same climber and never see each other.
 // So whoever arrived later moves over to the other stair.
 const joinedAt = Date.now() + Math.random();

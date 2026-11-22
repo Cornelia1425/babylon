@@ -38,6 +38,7 @@ const TEXT = {
   slipped: 'You lost your footing and slid to the landing below.',
   alone: 'no partner yet · Tab plays both',
   together: 'partner is here',
+  ledger: (b, w, s) => `today · ${b} bridges joined by two climbers · ${w} towers joined whole · ${s} climbs to the top`,
   copied: 'Link copied',
 };
 
@@ -441,7 +442,21 @@ function growThings(dt) {
 let net = null, relays = 0, lastSeen = -1e9, circuit = 0, lastPosSent = 0, lastStateSent = 0;
 const now = () => performance.now() / 1000;
 const partnerHere = () => now() - lastSeen < 3.5;
-function sendState() { lastStateSent = now(); if (net) net.send('s', { b: [...bridges] }); }
+function sendState() { lastStateSent = now(); if (net) net.send('s', { b: [...bridges], v: universe }); }
+
+// ---------- universes ----------
+// Each tower can be climbed alone. But only a tower whose every bridge has been joined opens onto the next one.
+// Going through the vault with a bridge still broken puts you back at the foot of the same tower.
+let universe = 0;
+const skyBase = { top: new THREE.Color(PAL.skyTop), horizon: new THREE.Color(PAL.skyHorizon) };
+function enterUniverse(n) {
+  universe = n; bridges.clear();
+  for (const sp of spans.values()) { sp.on = false; sp.t = 0; for (const m of sp.halves) m.scale.x = OPEN; }
+  // PLACEHOLDER LOOK for a new universe: the sky turns to another colour. A creative decision.
+  const h = (universe * 0.13) % 1;
+  sky.material.uniforms.top.value.copy(skyBase.top).offsetHSL(h, 0, 0);
+  sky.material.uniforms.horizon.value.copy(skyBase.horizon).offsetHSL(h, 0, 0);
+}
 // If two people open the same link they would both be the same climber and never see each other.
 // So whoever arrived later moves over to the other stair.
 const joinedAt = Date.now() + Math.random();
@@ -464,7 +479,14 @@ function onMessage(sub, d) {
     if (typeof d.d === 'number') c.dust = d.d;
     if (typeof d.g === 'number') c.grip = d.g;
   } else if (sub === 's') {
-    for (const id of d.b || []) addBridge(id, false);
+    const v = typeof d.v === 'number' ? d.v : 0;
+    if (v > universe) {
+      // The other climber went through the vault of a fully joined tower. We go on together.
+      enterUniverse(v);
+      const c = climbers[myRoute]; c.u = c.target = 0; c.grip = 1; c.sliding = false; c.dust = 1; snap = true;
+      $('fade').classList.add('on'); setTimeout(() => $('fade').classList.remove('on'), 900);
+    }
+    if (v === universe) for (const id of d.b || []) addBridge(id, false); // an older tower's bridges mean nothing here
   }
 }
 import('./net.js')
@@ -507,6 +529,23 @@ $('b-invite').onclick = async () => {
   setTimeout(() => { $('b-invite').textContent = 'Invite'; }, 1800);
 };
 
+// ---------- the tower's memory ----------
+// A small service on Modal. It generates nothing: it counts bridges that two climbers on two devices joined,
+// and climbs that reached the top, and shows everyone the same numbers. A bridge you join alone with Tab is not sent.
+// If the service cannot be reached the game carries on without it.
+const LEDGER = '';
+const ledgerEl = document.createElement('div');
+ledgerEl.style.cssText = 'color:var(--dim);font-size:12px;text-align:right;font-variant-numeric:tabular-nums';
+$('status').after(ledgerEl);
+function showLedger(d) { if (d && typeof d.bridges === 'number') ledgerEl.textContent = TEXT.ledger(d.bridges, d.towers || 0, d.summits); }
+function readLedger() { if (LEDGER) fetch(`${LEDGER}/tower`).then((r) => r.json()).then(showLedger).catch(() => {}); }
+function witness(kind, key) {
+  if (!LEDGER) return;
+  fetch(`${LEDGER}/witness`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, key }) })
+    .then((r) => r.json()).then(showLedger).catch(() => {});
+}
+readLedger(); setInterval(readLedger, 20000);
+
 // ---------- opening the vault ----------
 let breaking = 0, resetDone = false, breaker = null;
 function startBreak(c) { if (!breaking) { breaking = 0.0001; resetDone = false; breaker = c; } }
@@ -523,6 +562,13 @@ function runBreak(dt) {
     resetDone = true;
     // Through the vault, and out at the ground where they began. The dust stays on them.
     { const c = breaker; c.u = c.target = 0; c.dust = 1; c.grip = 1; c.sliding = false; } // only the one who went through
+    if (bridges.size === W.GAPS.length) {
+      // Every bridge joined: this tower opens onto the next universe, and both climbers go.
+      enterUniverse(universe + 1);
+      for (const c of climbers) { c.u = c.target = 0; c.grip = 1; c.sliding = false; c.dust = 1; }
+      if (partnerHere()) witness('tower', `${room}:${universe}`);
+      sendState();
+    }
     for (const w of wedges) { w.position.set(0, DOME_Y, 0); w.rotation.set(0, 0, 0); }
     mode = 'in'; snap = true;
   }
@@ -586,7 +632,7 @@ function updateWords(t) {
   }
   if (p !== lastPrompt) { $('prompt').textContent = p; lastPrompt = p; }
   const link = relays > 0 ? (partnerHere() ? TEXT.together : TEXT.alone) : relays < 0 ? 'offline · Tab plays both' : 'connecting · Tab plays both';
-  const s = `climber ${active + 1} · room ${room} · ${link} · bridges ${bridges.size}/${W.GAPS.length}${circuit ? ` · circuit ${circuit + 1}` : ''}`;
+  const s = `climber ${active + 1} · room ${room} · universe ${universe + 1} · ${link} · bridges ${bridges.size}/${W.GAPS.length}${circuit ? ` · circuit ${circuit + 1}` : ''}`;
   if (s !== lastStatus) { $('status').textContent = s; lastStatus = s; }
   const fill = $('breath-fill'); fill.style.transform = `scaleX(${me.grip.toFixed(3)})`; fill.style.background = me.grip < 0.25 ? '#e2452c' : '#ffd000';
   $('b-swap').style.display = partnerHere() ? 'none' : '';
@@ -653,8 +699,8 @@ renderer.setAnimationLoop(() => {
   if (together) { const r = climbers[1 - myRoute]; if (Math.abs(r.target - r.u) > 0.0015) r.facing = r.target > r.u ? 1 : -1; r.u += (r.target - r.u) * Math.min(1, dt * 10); }
 
   const us = [climbers[0].u, climbers[1].u];
-  for (const id of W.mend(us, bridges)) addBridge(id, true);
-  if (!breaking && W.atSummit(climbers[active].u)) { circuit += 1; startBreak(climbers[active]); }
+  for (const id of W.mend(us, bridges)) { addBridge(id, true); if (together) witness('bridge', `${room}:${universe}:${id}`); }
+  if (!breaking && W.atSummit(climbers[active].u)) { circuit += 1; startBreak(climbers[active]); if (active === myRoute) witness('summit'); }
 
   for (const g of W.GAPS) {
     const mk = marks.get(g.id), me = us[g.route], partner = us[1 - g.route];
@@ -676,4 +722,4 @@ renderer.setAnimationLoop(() => {
 });
 
 // Handy for testing from the console.
-window.__tower = { climbers, bridges, W, cut, swap, get mode() { return mode; }, get circuit() { return circuit; } };
+window.__tower = { climbers, bridges, W, cut, swap, get mode() { return mode; }, get circuit() { return circuit; }, get universe() { return universe; } };

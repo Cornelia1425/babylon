@@ -333,6 +333,7 @@ function setLimb(mesh, a, b) {
   mesh.position.addVectors(a, b).multiplyScalar(0.5);
   mesh.scale.y = len; mesh.quaternion.setFromUnitVectors(Y, vd.normalize());
 }
+let figureGlow = 0; // how much the two figures give off their own light, so they stay pale in a dark universe
 function makeClimber(route) {
   const group = new THREE.Group();
   const flat = (color) => new THREE.MeshStandardMaterial({ color, roughness: 1 });
@@ -391,6 +392,7 @@ function poseClimber(c) {
   c.cloth.color.copy(c.base).lerp(chalk, c.dust * 0.9);
   c.skin.color.copy(c.skinBase).lerp(chalk, c.dust * 0.5);
   c.red.color.copy(c.redBase).lerp(chalk, c.dust * 0.78); // the red goes chalky
+  for (const m of [c.cloth, c.skin, c.red]) { m.emissive.copy(m.color); m.emissiveIntensity = figureGlow; }
   c.bar.scale.y = Math.max(0.02, c.grip * 0.55); c.bar.material.color.set(c.grip < 0.25 ? PAL.gripLow : PAL.grip);
 }
 const chalk = new THREE.Color(PAL.chalk);
@@ -457,9 +459,9 @@ function enterUniverse(n) {
 // The stone itself keeps its colour; it is the light that changes, the way it would on a real building.
 const LOOKS = [
   { name: 'sunset', top: PAL.skyTop, horizon: PAL.skyHorizon, haze: PAL.haze, deep: PAL.deep, cloud: PAL.cloud,
-    sun: 0xffd2a4, sunPower: 2.5, air: 0xd6daff, bounce: 0xe0c9b2, airPower: 1.3 },
+    sun: 0xffd2a4, sunPower: 2.5, air: 0xd6daff, bounce: 0xe0c9b2, airPower: 1.3, figure: 0 },
   { name: 'blue hour', top: 0x0e1a4f, horizon: 0xb18fe6, haze: 0x6a70c8, deep: 0x18205c, cloud: 0x93a4f2,
-    sun: 0x8ea8ff, sunPower: 1.7, air: 0x4f6ee0, bounce: 0x3d3580, airPower: 1.5 },
+    sun: 0x8ea8ff, sunPower: 1.7, air: 0x4f6ee0, bounce: 0x3d3580, airPower: 1.5, figure: 0.8 },
 ];
 function applyLook() {
   const k = LOOKS[universe % LOOKS.length];
@@ -468,6 +470,7 @@ function applyLook() {
   for (const c of clouds) c.material.color.set(k.cloud);
   sun.color.set(k.sun); sun.intensity = k.sunPower;
   hemi.color.set(k.air); hemi.groundColor.set(k.bounce); hemi.intensity = k.airPower;
+  figureGlow = k.figure;
 }
 // Add ?u=2 to the address to open straight into the second universe.
 { const u = (parseInt(q.get('u'), 10) || 1) - 1; if (u > 0) enterUniverse(u); }

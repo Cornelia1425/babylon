@@ -4,6 +4,16 @@ Two people climb a hollow tower on two spiral stairs. Neither has to wait for th
 
 Made by Yiran Shu at the NYC Non-Slop Hackathon on 22 November 2026. The hackathon theme was "What matters when you can generate anything? Can you explain your choices?"
 
+## Today, and what comes next
+
+**Today** the two climbers are two people, each on their own device.
+
+**Next** the second climber can be an AI. When nobody else has joined your tower, an AI climber hosted on Modal's cloud joins the same room. It walks its own stair, rests on the landings, and comes to stand at the far end of a broken bridge when you stand at yours, so the bridges can still be joined when you are alone.
+
+Modal is where it would run because the AI needs to live somewhere other than a player's browser, and it only needs to run while a tower is waiting for a second climber.
+
+This is planned. It is not built yet.
+
 ## Play
 
 Open the page, press **Invite**, and send the link to a second player. It also works alone: press **Tab** to play both climbers.

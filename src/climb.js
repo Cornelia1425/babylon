@@ -43,7 +43,7 @@ const TEXT = {
 
 // ---------- who am I, which tower ----------
 const q = new URLSearchParams(location.search);
-const myRoute = q.get('p') === '2' ? 1 : 0;
+let myRoute = q.get('p') === '2' ? 1 : 0; // may change once, if someone else is already on this stair
 let room = (q.get('room') || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
 if (!room) {
   room = Math.random().toString(36).slice(2, 7);
@@ -442,7 +442,21 @@ let net = null, relays = 0, lastSeen = -1e9, circuit = 0, lastPosSent = 0, lastS
 const now = () => performance.now() / 1000;
 const partnerHere = () => now() - lastSeen < 3.5;
 function sendState() { lastStateSent = now(); if (net) net.send('s', { b: [...bridges] }); }
+// If two people open the same link they would both be the same climber and never see each other.
+// So whoever arrived later moves over to the other stair.
+const joinedAt = Date.now() + Math.random();
+let movedOver = false;
 function onMessage(sub, d) {
+  if (sub === `p/${myRoute}`) {
+    if (!movedOver && typeof d.j === 'number' && d.j < joinedAt) {
+      const old = myRoute; movedOver = true; myRoute = 1 - myRoute;
+      if (active === old) active = myRoute;
+      climbers[myRoute].u = climbers[myRoute].target = climbers[old].u; climbers[myRoute].grip = climbers[old].grip;
+      q.set('p', String(myRoute + 1)); try { history.replaceState(null, '', `?${q}`); } catch { /* fine */ }
+      snap = true;
+    }
+    return;
+  }
   if (sub === `p/${1 - myRoute}`) {
     lastSeen = now();
     const c = climbers[1 - myRoute];
@@ -650,7 +664,7 @@ renderer.setAnimationLoop(() => {
   }
 
   if (net) {
-    if (t - lastPosSent > 0.1) { lastPosSent = t; const c = climbers[myRoute]; net.send(`p/${myRoute}`, { u: +c.u.toFixed(4), d: c.dust, g: +c.grip.toFixed(2) }); }
+    if (t - lastPosSent > 0.1) { lastPosSent = t; const c = climbers[myRoute]; net.send(`p/${myRoute}`, { u: +c.u.toFixed(4), d: c.dust, g: +c.grip.toFixed(2), j: joinedAt }); }
     if (t - lastStateSent > 2) sendState();
   }
 

@@ -534,22 +534,27 @@ function frameCamera() {
     const a = W.angle(atBridge.route, atBridge.u) + Math.PI / 2, y = atBridge.u * TOP;
     wantPos.set(Math.cos(a) * 5.6, y + 1.3, Math.sin(a) * 5.6); wantLook.set(0, y + 0.5, 0);
   } else {
-    const c = climbers[active], a = W.angle(c.route, c.u), [x, y, z] = W.pos(c.route, c.u);
-    const rx = Math.cos(a), rz = Math.sin(a), tx = -rz, tz = rx; // away from centre, and up the route
-    // Low and behind, looking up the wall, so the height and the sky are in the frame.
-    wantPos.set(x - rx * 4.1 - tx * 2.4, y + 0.9, z - rz * 4.1 - tz * 2.4);
-    wantLook.set(x + tx * 0.9 + rx * 0.2, y + 2.6, z + tz * 0.9 + rz * 0.2);
+    // Close frame: through the climber's own eyes, on the stair, looking along the steps ahead.
+    // The wall runs past on one side and the open drop on the other.
+    const c = climbers[active], way = c.facing < 0 ? -1 : 1;
+    const [x, y, z] = W.pos(c.route, c.u, W.PATH_R - 0.1);
+    const ahead = W.pos(c.route, c.u + way * 0.05, W.PATH_R - 0.55);
+    const bob = 0.035 * Math.abs(Math.cos(c.u * W.PATH_LEN * 3.4));
+    wantPos.set(x, y + 1.62 + bob, z);
+    wantLook.set(ahead[0], ahead[1] + 0.95, ahead[2]);
   }
   if (snap) {
     camPos.copy(wantPos); camLook.copy(wantLook);
-    camera.fov = wide ? 26 : atBridge ? 72 : 58; camera.updateProjectionMatrix();
+    camera.fov = wide ? 26 : 72; camera.updateProjectionMatrix();
     scene.fog.color.set(wide ? PAL.haze : PAL.deep); scene.fog.near = wide ? 500 : 16; scene.fog.far = wide ? 5000 : 150;
     for (const col of columns) col.visible = !(wide && col.userData.front > 0.12);
     for (const w of wedges) w.visible = !(wide && w.userData.front > 0.12);
     for (const c of climbers) { c.lamp.visible = wide; c.lamp.scale.setScalar(5); }
     shaft.visible = !wide;
     snap = false;
-  } else { camPos.lerp(wantPos, 0.1); camLook.lerp(wantLook, 0.12); }
+  } else { camPos.lerp(wantPos, 0.3); camLook.lerp(wantLook, 0.16); }
+  // In the close frame you are the climber, so your own figure is not drawn.
+  for (const c of climbers) c.group.visible = wide || !!atBridge || c !== climbers[active];
   camera.position.copy(camPos); camera.lookAt(camLook);
   sky.position.copy(camPos);
 }
@@ -569,6 +574,7 @@ function updateWords(t) {
   const link = relays > 0 ? (partnerHere() ? TEXT.together : TEXT.alone) : relays < 0 ? 'offline · Tab plays both' : 'connecting · Tab plays both';
   const s = `climber ${active + 1} · room ${room} · ${link} · bridges ${bridges.size}/${W.GAPS.length}${circuit ? ` · circuit ${circuit + 1}` : ''}`;
   if (s !== lastStatus) { $('status').textContent = s; lastStatus = s; }
+  const fill = $('breath-fill'); fill.style.transform = `scaleX(${me.grip.toFixed(3)})`; fill.style.background = me.grip < 0.25 ? '#e2452c' : '#ffd000';
   $('b-swap').style.display = partnerHere() ? 'none' : '';
 }
 
